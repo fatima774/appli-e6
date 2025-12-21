@@ -1,0 +1,2 @@
+jout (fichiers): j’ai créé src/utils/api.js, src/components/LogementsList.js et src/components/RegisterForm.js.
+But: fournir des helpers fetch réutilisables (timeout/AbortController + GET/POST) et deux composants React exemples pour consommer l’API backend.
