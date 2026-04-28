@@ -1,0 +1,11 @@
+# On ignore les bibliothèques (elles pèsent trop lourd)
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+
+# On ignore les variables secrètes
+.env
+
+# On ignore les fichiers de build
+frontend/dist/
+frontend/build/
