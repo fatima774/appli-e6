@@ -1,4 +1,7 @@
-require("dotenv").config();
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
+
 const express = require("express");
 const mysql = require("mysql2");
 const cors = require("cors");
@@ -38,7 +41,7 @@ const transporter = nodemailer.createTransport({
 const db = mysql.createConnection({
   host: process.env.DB_HOST || "localhost",
   user: process.env.DB_USER || "root",
-  password: process.env.DB_PASS || "",
+  password: process.env.DB_PASSwORD,
   database: process.env.DB_NAME || "logements_etudiants"
 });
 
