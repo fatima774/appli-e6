@@ -70,18 +70,80 @@ function normalizeOptionalValue(value) {
 
 function normalizeLogementRow(row) {
   if (!row) return row;
-  if (!row.image && row.photo) {
-    return { ...row, image: row.photo };
+
+  let photos = row.photos;
+  if (typeof photos === "string") {
+    try {
+      photos = JSON.parse(photos);
+    } catch {
+      photos = photos
+        .split(",")
+        .map((photo) => photo.trim())
+        .filter(Boolean);
+    }
   }
-  return row;
+
+  if (!Array.isArray(photos)) {
+    photos = [];
+  }
+
+  const primaryImage = row.image || row.photo || photos[0] || null;
+
+  return {
+    ...row,
+    image: primaryImage,
+    photos,
+  };
 }
 
-function getOwnerColumn(columns) {
-  if (columns.has("id_user")) return "id_user";
-  if (columns.has("user_id")) return "user_id";
-  if (columns.has("id_utilisateur")) return "id_utilisateur";
-  if (columns.has("owner_id")) return "owner_id";
+function getImageColumn(columns) {
+  if (columns.has("image")) return "image";
+  if (columns.has("photo")) return "photo";
   return null;
+}
+
+function serializePhotos(files) {
+  if (!Array.isArray(files) || files.length === 0) return null;
+  return JSON.stringify(files);
+}
+
+function getPrimaryPhoto(files) {
+  if (!Array.isArray(files) || files.length === 0) return undefined;
+  return files[0];
+}
+
+function ensureLogementPhotoColumns() {
+  return new Promise((resolve, reject) => {
+    db.query(
+      `
+        ALTER TABLE logement
+        ADD COLUMN IF NOT EXISTS photos TEXT NULL
+      `,
+      (err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        loadLogementColumns(true).then(resolve).catch(reject);
+      }
+    );
+  });
+}
+
+function setImageFields(payload, columns, files) {
+  const imageColumn = getImageColumn(columns);
+  const primaryPhoto = getPrimaryPhoto(files);
+  const serializedPhotos = serializePhotos(files);
+
+  if (imageColumn && primaryPhoto !== undefined) {
+    payload[imageColumn] = primaryPhoto;
+  }
+
+  if (columns.has("photos") && serializedPhotos !== null) {
+    payload.photos = serializedPhotos;
+  }
+
+  return payload;
 }
 
 function buildLogementPayload(body, columns, options = {}) {
@@ -106,12 +168,17 @@ function buildLogementPayload(body, columns, options = {}) {
     payload[ownerColumn] = options.ownerId;
   }
 
-  if (options.imageFilename !== undefined) {
-    if (columns.has("image")) payload.image = options.imageFilename;
-    if (!columns.has("image") && columns.has("photo")) payload.photo = options.imageFilename;
-  }
+  setImageFields(payload, columns, options.imageFilenames || []);
 
   return payload;
+}
+
+function getOwnerColumn(columns) {
+  if (columns.has("id_user")) return "id_user";
+  if (columns.has("user_id")) return "user_id";
+  if (columns.has("id_utilisateur")) return "id_utilisateur";
+  if (columns.has("owner_id")) return "owner_id";
+  return null;
 }
 
 db.connect(err => {
@@ -131,7 +198,7 @@ db.connect(err => {
     else console.log("✅ Colonnes reset ajoutées");
   });
 
-  loadLogementColumns(true)
+  ensureLogementPhotoColumns()
     .then((columns) => {
       console.log("Colonnes logement detectees:", [...columns].join(", "));
     })
