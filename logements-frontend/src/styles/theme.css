@@ -1,0 +1,12 @@
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --muted: #222222;
+  --text: #000000;
+  --primary: #000000;
+  --accent: #000000;
+  --danger: #000000;
+  --success: #000000;
+  --radius: 18px;
+}

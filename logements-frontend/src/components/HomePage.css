@@ -1,0 +1,376 @@
+.hp-home-body {
+  padding-top: 0;
+}
+
+.hp-header,
+.hp-search-panel,
+.hp-quick-section,
+.hp-section {
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.04);
+}
+
+.hp-search-panel,
+.hp-quick-section,
+.hp-section {
+  margin-top: 16px;
+}
+
+.hp-header-top,
+.hp-section-head,
+.hp-card-topline,
+.hp-card-footer,
+.hp-card-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hp-logo-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hp-logo-badge,
+.hp-quick-icon,
+.hp-profile-btn,
+.hp-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid #d8d8d8;
+}
+
+.hp-logo-badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+}
+
+.hp-logo-eyebrow,
+.hp-hero-kicker,
+.hp-section-kicker {
+  margin: 0 0 6px;
+  color: #000000;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.hp-logo-text,
+.hp-section-title,
+.hp-card-name {
+  color: #000000;
+  font-weight: 700;
+}
+
+.hp-logo-text {
+  font-size: 17px;
+}
+
+.hp-header-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.hp-link,
+.hp-card-link,
+.hp-mini-btn,
+.hp-quick-card,
+.hp-clear-btn {
+  color: #000000;
+  text-decoration: none;
+  background: #ffffff;
+  border: 1px solid #cfcfcf;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.04);
+}
+
+.hp-link {
+  min-height: 40px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hp-link-primary,
+.hp-card-link {
+  border-color: #000000;
+  background: #f7f7f7;
+}
+
+.hp-profile-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  cursor: pointer;
+}
+
+.hp-profile-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.hp-hero {
+  margin-top: 16px;
+}
+
+.hp-hero-title {
+  margin: 0 0 10px;
+  color: #000000;
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.hp-hero-text,
+.hp-quick-helper,
+.hp-card-description,
+.hp-card-meta,
+.hp-empty-state {
+  color: #000000;
+  opacity: 0.78;
+}
+
+.hp-search-label {
+  display: block;
+  margin-bottom: 10px;
+  color: #000000;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.hp-search-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 14px;
+  border: 1px solid #d8d8d8;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.hp-search-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000;
+}
+
+.hp-search {
+  border: 0;
+  background: transparent;
+  color: #000000;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.hp-clear-btn {
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hp-section-title {
+  margin: 0;
+  font-size: 19px;
+}
+
+.hp-count-badge {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #cfcfcf;
+  background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.hp-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hp-quick-card {
+  min-height: 116px;
+  padding: 14px;
+  border-radius: 18px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.hp-quick-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  margin-bottom: 12px;
+}
+
+.hp-quick-label {
+  display: block;
+  color: #000000;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.hp-quick-helper {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.hp-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.hp-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid #e3e3e3;
+  background: #ffffff;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+}
+
+.hp-card-img {
+  width: 100%;
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+}
+
+.hp-card-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+.hp-action-btn {
+  min-width: 42px;
+  height: 42px;
+  padding: 0 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  color: #000000;
+  gap: 6px;
+  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.08);
+}
+
+.hp-action-btn.active {
+  background: #f5f5f5;
+  border-color: #000000;
+}
+
+.hp-card-info {
+  padding: 16px;
+}
+
+.hp-card-name {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.hp-price {
+  color: #000000;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid #d4d4d4;
+  background: #ffffff;
+  white-space: nowrap;
+}
+
+.hp-card-meta {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.hp-card-description {
+  margin: 12px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.hp-card-footer {
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.hp-card-link,
+.hp-mini-btn {
+  min-height: 42px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hp-owner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hp-empty-state {
+  min-height: 120px;
+  padding: 20px;
+  border-radius: 18px;
+  border: 1px dashed #b8b8b8;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .hp-hero-title {
+    font-size: 24px;
+  }
+
+  .hp-quick-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hp-card-topline,
+  .hp-card-meta,
+  .hp-card-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

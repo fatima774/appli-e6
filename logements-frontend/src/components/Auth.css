@@ -1,0 +1,138 @@
+.auth-card {
+  width: 100%;
+  background: #ffffff;
+  border: 1px solid #e6e6e6;
+  border-radius: 22px;
+  padding: 18px;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.04);
+}
+
+.auth-illustration {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.photo-preview {
+  width: 96px;
+  height: 96px;
+  border-radius: 18px;
+  object-fit: cover;
+  border: 1px solid #d8d8d8;
+  background: #ffffff;
+}
+
+.auth-title {
+  margin: 0;
+  color: #000000;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.auth-subtitle {
+  margin: 0 0 14px;
+  color: #000000;
+  opacity: 0.8;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-input {
+  width: 100%;
+}
+
+.auth-btn {
+  min-height: 46px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #000000;
+  background: #f6f6f6;
+  color: #000000;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.04);
+}
+
+.auth-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.auth-aux {
+  margin-top: 14px;
+  color: #000000;
+  opacity: 0.86;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.auth-aux a {
+  color: #000000;
+  font-weight: 700;
+}
+
+.auth-error,
+.auth-success {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #cfcfcf;
+  background: #ffffff;
+  color: #000000;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.hp-icon-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid #d8d8d8;
+  background: #ffffff;
+  color: #000000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.04);
+}
+
+.password-strength-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+  padding: 12px;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e3e3e3;
+}
+
+.password-strength-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #000000;
+  font-size: 13px;
+}
+
+.password-strength-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #c8c8c8;
+}
+
+.password-strength-item.met .password-strength-indicator {
+  background: #000000;
+}

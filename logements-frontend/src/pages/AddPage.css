@@ -1,0 +1,45 @@
+.add-card {
+  width: 100%;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-label {
+  color: #000000;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.add-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.add-preview-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 16px;
+  border: 1px solid #d8d8d8;
+  background: #ffffff;
+}
+
+.add-current-image {
+  width: 100%;
+  max-width: 120px;
+  border-radius: 16px;
+  border: 1px solid #d8d8d8;
+  margin-top: 6px;
+}
+
+@media (max-width: 480px) {
+  .add-preview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
