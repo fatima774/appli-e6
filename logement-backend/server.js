@@ -15,11 +15,15 @@ const crypto = require("crypto");
 const app = express();
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || "CHANGE_ME";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
 // ======================
 // MIDDLEWARES
 // ======================
-app.use(cors());
+app.use(cors({
+  origin: FRONTEND_URL,
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -41,8 +45,10 @@ const transporter = nodemailer.createTransport({
 const db = mysql.createConnection({
   host: process.env.DB_HOST || "localhost",
   user: process.env.DB_USER || "root",
-  password: process.env.DB_PASSwORD,
-  database: process.env.DB_NAME || "logements_etudiants"
+  password: process.env.DB_PASSWORD || "",
+  database: process.env.DB_NAME || "logements_etudiants",
+  port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
+  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : undefined
 });
 
 let logementColumnsPromise = null;
@@ -282,7 +288,7 @@ app.post("/register", upload.single("photo"), async (req, res) => {
           return res.status(500).json({ error: "Erreur SQL" });
         }
         const token = jwt.sign({ id_user: result.insertId }, JWT_SECRET, { expiresIn: "24h" });
-        res.status(201).json({ 
+        res.status(201).json({
           message: "Inscription réussie",
           token,
           user: {
@@ -382,7 +388,7 @@ app.get("/profile", auth, (req, res) => {
 // =====================================================
 app.put("/profile", auth, upload.single("photo"), (req, res) => {
   const id_user = req.user.id_user;
-  
+
   console.log("PUT /profile - ID utilisateur:", id_user);
   console.log("PUT /profile - Champs reçus:", Object.keys(req.body));
   console.log("PUT /profile - Fichier photo:", req.file ? req.file.filename : "Aucun");
@@ -390,7 +396,7 @@ app.put("/profile", auth, upload.single("photo"), (req, res) => {
   // Vérifier qu'au moins un champ est envoyé (texte ou photo)
   const hasTextFields = Object.keys(req.body).some(key => req.body[key] !== undefined && req.body[key] !== "");
   const hasPhoto = req.file ? true : false;
-  
+
   if (!hasTextFields && !hasPhoto) {
     return res.status(400).json({ error: "Aucun champ à mettre à jour" });
   }
@@ -432,7 +438,7 @@ app.put("/profile", auth, upload.single("photo"), (req, res) => {
   values.push(id_user);
 
   const sql = `UPDATE utilisateur SET ${fields.join(", ")} WHERE id_user = ?`;
-  
+
   console.log("SQL générée:", sql);
   console.log("Valeurs:", values);
 
@@ -529,7 +535,7 @@ app.post("/forgot-password", (req, res) => {
         return res.status(500).json({ error: "Erreur SQL" });
       }
 
-      const resetLink = `http://localhost:3000/reset-password?token=${resetToken}`;
+      const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
 
       const mailOptions = {
         from: process.env.EMAIL_USER,
@@ -583,7 +589,7 @@ app.get("/mes-logements", auth, (req, res) => {
 });
 
 // ======================
-// MODIFIER LOGEMENT (CORRIGÉ)
+// MODIFIER LOGEMENT
 // ======================
 app.put("/logements/:id", auth, upload.single("image"), (req, res) => {
   const { id } = req.params;
@@ -605,15 +611,15 @@ app.put("/logements/:id", auth, upload.single("image"), (req, res) => {
 
       db.query(`SELECT ${ownerColumn} FROM logement WHERE id_logement = ?`, [id], (err, rows) => {
         if (err) return res.status(500).json({ error: "Erreur SQL" });
-        if (rows.length === 0) return res.status(404).json({ error: "Logement non trouvÃ©" });
+        if (rows.length === 0) return res.status(404).json({ error: "Logement non trouvé" });
         if (String(rows[0][ownerColumn]) !== String(id_user)) {
-          return res.status(403).json({ error: "Non autorisÃ©" });
+          return res.status(403).json({ error: "Non autorisé" });
         }
 
         const payload = buildLogementPayload(
           { titre, ville, universite, prix, type, adresse, description },
           columns,
-          { imageFilename: image }
+          { imageFilenames: image ? [image] : [] }
         );
         const fields = Object.keys(payload);
 
@@ -629,7 +635,7 @@ app.put("/logements/:id", auth, upload.single("image"), (req, res) => {
             console.error("Erreur SQL lors de la modification du logement:", updateErr);
             return res.status(500).json({ error: "Erreur SQL" });
           }
-          res.json({ message: "Logement mis Ã  jour avec succÃ¨s" });
+          res.json({ message: "Logement mis à jour avec succès" });
         });
       });
     })
@@ -637,23 +643,6 @@ app.put("/logements/:id", auth, upload.single("image"), (req, res) => {
       console.error("Erreur schema logement:", schemaErr);
       res.status(500).json({ error: "Erreur SQL" });
     });
-
-  db.query("SELECT id_user FROM logement WHERE id_logement = ?", [id], (err, rows) => {
-    if (err) return res.status(500).json({ error: "Erreur SQL" });
-    if (rows.length === 0) return res.status(404).json({ error: "Logement non trouvé" });
-    if (rows[0].id_user !== id_user) {
-      return res.status(403).json({ error: "Non autorisé" });
-    }
-
-    // Mettre à jour le logement
-    const sql = `UPDATE logement SET titre = ?, ville = ?, universite = ?, prix = ?, type = ?, adresse = ?, description = ?, image = COALESCE(?, image) WHERE id_logement = ?`;
-    const values = [titre, ville, universite, prix, type, adresse, description, image, id];
-
-    db.query(sql, values, (err) => {
-      if (err) return res.status(500).json({ error: "Erreur SQL" });
-      res.json({ message: "Logement mis à jour avec succès" });
-    });
-  });
 });
 
 // ======================
@@ -678,6 +667,7 @@ app.delete("/logements/:id", auth, (req, res) => {
       // Supprimer le logement
       db.query("DELETE FROM logement WHERE id_logement = ?", [id], (err) => {
         if (err) return res.status(500).json({ error: "Erreur SQL lors de la suppression du logement" });
+
         res.json({ message: "Logement et favoris associés supprimés avec succès" });
       });
     });
@@ -685,7 +675,7 @@ app.delete("/logements/:id", auth, (req, res) => {
 });
 
 // ======================
-// LIKE/UNLIKE LOGEMENT (CORRIGÉ)
+// LIKE/UNLIKE LOGEMENT
 // ======================
 app.post("/logements/:id/like", auth, (req, res) => {
   const { id } = req.params;
@@ -746,7 +736,7 @@ app.post("/logements", auth, upload.single("image"), (req, res) => {
       const payload = buildLogementPayload(
         { titre, ville, universite, prix, type, adresse, description },
         columns,
-        { imageFilename: image, ownerId: id_user }
+        { imageFilenames: image ? [image] : [], ownerId: id_user }
       );
       const fields = Object.keys(payload);
 
@@ -763,7 +753,7 @@ app.post("/logements", auth, upload.single("image"), (req, res) => {
           return res.status(500).json({ error: "Erreur SQL" });
         }
         res.status(201).json({
-          message: "Logement ajoutÃ© avec succÃ¨s",
+          message: "Logement ajouté avec succès",
           logement: normalizeLogementRow({
             id_logement: result.insertId,
             ...payload
@@ -775,32 +765,6 @@ app.post("/logements", auth, upload.single("image"), (req, res) => {
       console.error("Erreur schema logement:", schemaErr);
       res.status(500).json({ error: "Erreur SQL" });
     });
-
-  const sql = `INSERT INTO logement (titre, ville, universite, prix, type, adresse, description, image, id_user)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
-  const values = [titre, ville, universite, prix, type, adresse, description, image, id_user];
-
-  db.query(sql, values, (err, result) => {
-    if (err) {
-      console.error("Erreur SQL lors de l'ajout de logement:", err);
-      return res.status(500).json({ error: "Erreur SQL" });
-    }
-    res.status(201).json({
-      message: "Logement ajouté avec succès",
-      logement: {
-        id_logement: result.insertId,
-        titre,
-        ville,
-        universite,
-        prix,
-        type,
-        adresse,
-        description,
-        image,
-        id_user
-      }
-    });
-  });
 });
 
 // ======================
@@ -840,7 +804,6 @@ app.post("/avis", auth, (req, res) => {
 
 app.get("/avis/:id_logement", (req, res) => {
   const { id_logement } = req.params;
-
   db.query(
     `SELECT a.*, u.prenom, u.nom FROM avis a JOIN utilisateur u ON a.id_user = u.id_user WHERE a.id_logement = ? ORDER BY a.date DESC`,
     [id_logement],
@@ -855,5 +818,5 @@ app.get("/avis/:id_logement", (req, res) => {
 app.get("/", (_, res) => res.send("API OK"));
 
 app.listen(PORT, () =>
-  console.log(`🚀 API lancée sur http://localhost:${PORT}`)
+  console.log(`🚀 API lancée sur le port ${PORT}`)
 );
