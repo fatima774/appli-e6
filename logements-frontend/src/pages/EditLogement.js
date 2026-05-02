@@ -32,7 +32,7 @@ export default function EditLogement() {
   const [description, setDescription] = useState("");
   const [image, setImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
-  const [currentImage, setCurrentImage] = useState("");
+  const [, setCurrentImage] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
