@@ -826,7 +826,99 @@ app.get("/avis/:id_logement", (req, res) => {
     }
   );
 });
+// Route de connexion pour l'administrateur
+// Elle verifie les identifiants dans la table admin_user
+app.post("/admin/login", async (req, res) => {
+  // Recupere le nom d'utilisateur et le mot de passe envoyes
+  const { username, password } = req.body;
 
+  // Verifie que les champs ne sont pas vides
+  if (!username || !password) {
+    return res.status(400).json({ error: "Champs obligatoires manquants" });
+  }
+
+  // Cherche l'admin dans la base de donnees
+  db.query(
+    "SELECT password_hash FROM admin_user WHERE username = ?",
+    [username],
+    async (err, rows) => {
+      // En cas d'erreur SQL
+      if (err) return res.status(500).json({ error: "Erreur SQL" });
+
+      // Si aucun admin trouve
+      if (rows.length === 0) {
+        return res.status(401).json({ error: "Identifiants incorrects" });
+      }
+
+      // Recupere le mot de passe hache stocke en base
+      const storedHash = rows[0].password_hash;
+
+      // Compare le mot de passe saisi avec le hash stocke
+      const isMatch = await bcrypt.compare(password, storedHash);
+
+      // Si le mot de passe est incorrect
+      if (!isMatch) {
+        return res.status(401).json({ error: "Identifiants incorrects" });
+      }
+
+      // Connexion reussie - retourne un token JWT
+      const token = jwt.sign({ role: "admin", username }, JWT_SECRET, { expiresIn: "24h" });
+      res.json({ message: "Connexion reussie", token });
+    }
+  );
+});
+
+// Route pour recuperer tous les utilisateurs - reservee a l'admin
+app.get("/admin/users", (req, res) => {
+  // Recupere tous les utilisateurs de la base
+  db.query(
+    "SELECT id_user, nom, prenom, email FROM utilisateur ORDER BY id_user",
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: "Erreur SQL" });
+      res.json(rows);
+    }
+  );
+});
+
+// Route pour supprimer un utilisateur - reservee a l'admin
+app.delete("/admin/users/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.query("DELETE FROM avis WHERE id_user = ?", [id], (err) => {
+    if (err) return res.status(500).json({ error: "Erreur SQL" });
+
+    db.query("DELETE FROM user_likes WHERE id_user = ?", [id], (err) => {
+      if (err) return res.status(500).json({ error: "Erreur SQL" });
+
+      db.query("DELETE FROM logement WHERE id_user = ?", [id], (err) => {
+        if (err) return res.status(500).json({ error: "Erreur SQL" });
+
+        db.query("DELETE FROM utilisateur WHERE id_user = ?", [id], (err) => {
+          if (err) return res.status(500).json({ error: "Erreur SQL" });
+          res.json({ message: "Utilisateur supprime" });
+        });
+      });
+    });
+  });
+});
+
+// Route pour supprimer un logement - reservee a l'admin
+app.delete("/admin/logements/:id", (req, res) => {
+  const { id } = req.params;
+
+  db.query("DELETE FROM avis WHERE id_logement = ?", [id], (err) => {
+    if (err) return res.status(500).json({ error: "Erreur SQL" });
+
+    db.query("DELETE FROM user_likes WHERE id_logement = ?", [id], (err) => {
+      if (err) return res.status(500).json({ error: "Erreur SQL" });
+
+      db.query("DELETE FROM logement WHERE id_logement = ?", [id], (err) => {
+        if (err) return res.status(500).json({ error: "Erreur SQL" });
+        res.json({ message: "Logement supprime" });
+      });
+    });
+  });
+});
 // ======================
 app.get("/", (_, res) => res.send("API OK"));
 
