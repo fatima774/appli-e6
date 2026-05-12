@@ -7,7 +7,10 @@
       "Bash(Remove-Item \"c:\\\\Users\\\\fatim\\\\appli\\\\logements-frontend\\\\src\\\\pages\\\\ForgotPassword.js\" -Force)",
       "Bash(Remove-Item \"c:\\\\Users\\\\fatim\\\\appli\\\\logements-frontend\\\\src\\\\pages\\\\ResetPassword.js\" -Force)",
       "Bash(Remove-Item \"c:\\\\Users\\\\fatim\\\\appli\\\\logements-frontend\\\\src\\\\components\\\\PasswordStrength.js\" -Force)",
-      "Bash(Write-Output \"Fichiers supprimés\")"
+      "Bash(Write-Output \"Fichiers supprimés\")",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
