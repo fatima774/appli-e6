@@ -9,9 +9,6 @@ import LogementDetails from "./pages/LogementDetails";
 import EditLogement from "./pages/EditLogement";
 import VerifyEmail from "./pages/VerifyEmail";
 import FavoritesPage from "./pages/FavoritesPage";
-import ForgotPassword from "./pages/ForgotPassword";
-import ChangePassword from "./pages/ChangePassword";
-import ResetPassword from "./pages/ResetPassword";
 import MesLogements from "./pages/MesLogements";
 
 function App() {
@@ -39,14 +36,6 @@ function App() {
             }
           />
           <Route
-            path="/change-password"
-            element={
-              <ProtectedRoute>
-                <ChangePassword />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/mes-logements"
             element={
               <ProtectedRoute>
@@ -65,8 +54,6 @@ function App() {
           <Route path="/logement/:id" element={<LogementDetails />} />
           <Route path="/edit-logement/:id" element={<EditLogement />} />
           <Route path="/verify" element={<VerifyEmail />} />
-          <Route path="/forgot" element={<ForgotPassword />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="*" element={<HomePage />} />
         </Routes>
       </main>

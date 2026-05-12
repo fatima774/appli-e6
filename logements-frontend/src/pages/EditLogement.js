@@ -21,7 +21,6 @@ export default function EditLogement() {
   const { id } = useParams();
   const navigate = useNavigate();
   const token = localStorage.getItem("token");
-  const authUser = JSON.parse(localStorage.getItem("authUser") || "null");
 
   const [titre, setTitre] = useState("");
   const [ville, setVille] = useState("");
@@ -43,6 +42,8 @@ export default function EditLogement() {
       navigate("/login");
       return;
     }
+
+    const authUser = JSON.parse(localStorage.getItem("authUser") || "null");
 
     fetch(`${API_URL}/logements/${id}`)
       .then((res) => {
@@ -74,7 +75,7 @@ export default function EditLogement() {
         setError("Erreur lors du chargement du logement");
         setLoading(false);
       });
-  }, [id, authUser, token, navigate]);
+  }, [id, token, navigate]);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0] || null;

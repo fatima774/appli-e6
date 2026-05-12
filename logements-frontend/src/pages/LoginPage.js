@@ -100,10 +100,6 @@ export default function LoginPage() {
         </form>
 
         <div className="auth-aux">
-          <Link to="/forgot">Mot de passe oublie ?</Link>
-        </div>
-
-        <div className="auth-aux">
           Vous n'avez pas de compte ? <Link to="/register">Creer un compte</Link>
         </div>
       </div>

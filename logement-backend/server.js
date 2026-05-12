@@ -9,8 +9,6 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const multer = require("multer");
 const path = require("path");
-const nodemailer = require("nodemailer");
-const crypto = require("crypto");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,16 +39,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// ======================
-// NODEMAILER
-// ======================
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
 
 // ======================
 // DATABASE
@@ -171,14 +159,6 @@ db.connect(err => {
   }
   console.log("✅ MySQL connecté");
 
-  db.query(`
-    ALTER TABLE utilisateur
-    ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255),
-    ADD COLUMN IF NOT EXISTS reset_expires DATETIME
-  `, (err) => {
-    if (err) console.error("Erreur ajout colonnes reset:", err);
-  });
-
   ensureLogementPhotoColumns().catch((err) => {
     console.error("Erreur lecture schema logement:", err);
   });
@@ -228,14 +208,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ======================
-// PASSWORD
-// ======================
-const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/;
-
-function isPasswordStrong(password) {
-  return PASSWORD_REGEX.test(password);
-}
 
 // ======================
 // REGISTER
@@ -246,10 +218,6 @@ app.post("/register", upload.single("photo"), async (req, res) => {
 
     if (!nom || !prenom || !email || !password) {
       return res.status(400).json({ error: "Champs obligatoires manquants" });
-    }
-
-    if (!isPasswordStrong(password)) {
-      return res.status(400).json({ error: "Mot de passe trop faible. Il doit contenir au moins une majuscule, un chiffre, un caractère spécial et faire 8 caractères minimum" });
     }
 
     const hashed = await bcrypt.hash(password, 10);
@@ -399,82 +367,6 @@ app.put("/profile", auth, upload.single("photo"), (req, res) => {
   });
 });
 
-// ======================
-// CHANGE PASSWORD
-// ======================
-app.put("/change-password", auth, (req, res) => {
-  const { currentPassword, newPassword } = req.body;
-  const id_user = req.user.id_user;
-
-  if (!currentPassword || !newPassword) {
-    return res.status(400).json({ error: "Mot de passe actuel et nouveau requis" });
-  }
-
-  if (!isPasswordStrong(newPassword)) {
-    return res.status(400).json({ error: "Mot de passe trop faible. Il doit contenir au moins une majuscule, un chiffre, un caractère spécial et faire 8 caractères minimum" });
-  }
-
-  db.query("SELECT password FROM utilisateur WHERE id_user = ?", [id_user], (err, rows) => {
-    if (err) return res.status(500).json({ error: "Erreur SQL" });
-    if (rows.length === 0) return res.status(404).json({ error: "Utilisateur non trouvé" });
-
-    bcrypt.compare(currentPassword, rows[0].password, (err, isMatch) => {
-      if (err) return res.status(500).json({ error: "Erreur vérification mot de passe" });
-      if (!isMatch) return res.status(401).json({ error: "Mot de passe actuel incorrect" });
-
-      bcrypt.hash(newPassword, 10, (err, newHashed) => {
-        if (err) return res.status(500).json({ error: "Erreur hashage mot de passe" });
-
-        db.query("UPDATE utilisateur SET password = ? WHERE id_user = ?", [newHashed, id_user], (err) => {
-          if (err) return res.status(500).json({ error: "Erreur mise à jour mot de passe" });
-          res.json({ message: "Mot de passe mis à jour avec succès" });
-        });
-      });
-    });
-  });
-});
-
-// ======================
-// FORGOT PASSWORD
-// ======================
-app.post("/forgot-password", (req, res) => {
-  const { email } = req.body;
-
-  if (!email) {
-    return res.status(400).json({ error: "Email requis" });
-  }
-
-  db.query("SELECT id_user FROM utilisateur WHERE email = ?", [email], (err, rows) => {
-    if (err) return res.status(500).json({ error: "Erreur SQL" });
-    if (rows.length === 0) return res.status(404).json({ error: "Email introuvable" });
-
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 3600000);
-
-    db.query(
-      "UPDATE utilisateur SET reset_token = ?, reset_expires = ? WHERE id_user = ?",
-      [resetToken, expires, rows[0].id_user],
-      (err) => {
-        if (err) return res.status(500).json({ error: "Erreur SQL" });
-
-        const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
-        transporter.sendMail({
-          from: process.env.EMAIL_USER,
-          to: email,
-          subject: "Réinitialisation de mot de passe",
-          text: `Cliquez sur ce lien pour réinitialiser votre mot de passe : ${resetLink}`,
-          html: `<p>Cliquez sur ce lien pour réinitialiser votre mot de passe : <a href="${resetLink}">${resetLink}</a></p>`
-        }, (error) => {
-          if (error) {
-            console.error("Erreur envoi email:", error);
-            return res.status(500).json({ error: "Erreur envoi email" });
-          }
-          res.json({ message: `Lien de réinitialisation envoyé à ${email}` });
-        });
-      }
-    );
-  });
-});
 
 // ======================
 // LOGEMENTS

@@ -261,13 +261,6 @@ export default function ProfilePage() {
             Mes logements
           </button>
           <button
-            onClick={() => navigate("/change-password")}
-            className="profile-action-btn"
-            type="button"
-          >
-            Changer mot de passe
-          </button>
-          <button
             onClick={() => navigate("/favorites")}
             className="profile-action-btn"
             type="button"
