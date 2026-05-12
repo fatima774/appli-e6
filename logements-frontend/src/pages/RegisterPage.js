@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import PasswordStrength from "../components/PasswordStrength";
 import AppShell from "../components/AppShell";
 import { API_URL } from "../data/api";
 import "../components/Auth.css";
@@ -158,8 +157,6 @@ export default function RegisterPage() {
             disabled={loading}
             required
           />
-          <PasswordStrength password={form.password} />
-
           <input
             className="auth-input"
             name="telephone"
