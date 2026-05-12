@@ -38,12 +38,13 @@ export default function EditLogement() {
   const [notOwner, setNotOwner] = useState(false);
 
   useEffect(() => {
+    const token = localStorage.getItem("token");
+    const authUser = JSON.parse(localStorage.getItem("authUser") || "null");
+
     if (!token) {
       navigate("/login");
       return;
     }
-
-    const authUser = JSON.parse(localStorage.getItem("authUser") || "null");
 
     fetch(`${API_URL}/logements/${id}`)
       .then((res) => {
@@ -75,7 +76,7 @@ export default function EditLogement() {
         setError("Erreur lors du chargement du logement");
         setLoading(false);
       });
-  }, [id, token, navigate]);
+  }, [id, navigate]);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0] || null;
