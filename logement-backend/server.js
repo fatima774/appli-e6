@@ -30,7 +30,7 @@ app.use(cors({
     if (!origin || allowed.includes(origin)) {
       callback(null, true);
     } else {
-      callback(null, true);
+      callback(new Error("Not allowed by CORS"));
     }
   },
   credentials: true,
@@ -45,7 +45,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 // NODEMAILER
 // ======================
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  service: "gmail",
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS
@@ -67,20 +67,13 @@ const db = mysql.createConnection({
 let logementColumnsPromise = null;
 
 function loadLogementColumns(forceRefresh = false) {
-  if (!forceRefresh && logementColumnsPromise) {
-    return logementColumnsPromise;
-  }
-
+  if (!forceRefresh && logementColumnsPromise) return logementColumnsPromise;
   logementColumnsPromise = new Promise((resolve, reject) => {
     db.query("SHOW COLUMNS FROM logement", (err, rows) => {
-      if (err) {
-        reject(err);
-        return;
-      }
+      if (err) return reject(err);
       resolve(new Set(rows.map((row) => row.Field)));
     });
   });
-
   return logementColumnsPromise;
 }
 
@@ -92,30 +85,17 @@ function normalizeOptionalValue(value) {
 
 function normalizeLogementRow(row) {
   if (!row) return row;
-
   let photos = row.photos;
   if (typeof photos === "string") {
     try {
       photos = JSON.parse(photos);
     } catch {
-      photos = photos
-        .split(",")
-        .map((photo) => photo.trim())
-        .filter(Boolean);
+      photos = photos.split(",").map((p) => p.trim()).filter(Boolean);
     }
   }
-
-  if (!Array.isArray(photos)) {
-    photos = [];
-  }
-
+  if (!Array.isArray(photos)) photos = [];
   const primaryImage = row.image || row.photo || photos[0] || null;
-
-  return {
-    ...row,
-    image: primaryImage,
-    photos,
-  };
+  return { ...row, image: primaryImage, photos };
 }
 
 function getImageColumn(columns) {
@@ -137,15 +117,9 @@ function getPrimaryPhoto(files) {
 function ensureLogementPhotoColumns() {
   return new Promise((resolve, reject) => {
     db.query(
-      `
-        ALTER TABLE logement
-        ADD COLUMN IF NOT EXISTS photos TEXT NULL
-      `,
+      "ALTER TABLE logement ADD COLUMN IF NOT EXISTS photos TEXT NULL",
       (err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
+        if (err) return reject(err);
         loadLogementColumns(true).then(resolve).catch(reject);
       }
     );
@@ -156,15 +130,8 @@ function setImageFields(payload, columns, files) {
   const imageColumn = getImageColumn(columns);
   const primaryPhoto = getPrimaryPhoto(files);
   const serializedPhotos = serializePhotos(files);
-
-  if (imageColumn && primaryPhoto !== undefined) {
-    payload[imageColumn] = primaryPhoto;
-  }
-
-  if (columns.has("photos") && serializedPhotos !== null) {
-    payload.photos = serializedPhotos;
-  }
-
+  if (imageColumn && primaryPhoto !== undefined) payload[imageColumn] = primaryPhoto;
+  if (columns.has("photos") && serializedPhotos !== null) payload.photos = serializedPhotos;
   return payload;
 }
 
@@ -179,19 +146,13 @@ function buildLogementPayload(body, columns, options = {}) {
     ["adresse", body.adresse],
     ["description", body.description]
   ];
-
   entries.forEach(([field, rawValue]) => {
     if (!columns.has(field)) return;
     payload[field] = field === "prix" ? rawValue : normalizeOptionalValue(rawValue);
   });
-
   const ownerColumn = getOwnerColumn(columns);
-  if (ownerColumn && options.ownerId !== undefined) {
-    payload[ownerColumn] = options.ownerId;
-  }
-
+  if (ownerColumn && options.ownerId !== undefined) payload[ownerColumn] = options.ownerId;
   setImageFields(payload, columns, options.imageFilenames || []);
-
   return payload;
 }
 
@@ -210,27 +171,21 @@ db.connect(err => {
   }
   console.log("✅ MySQL connecté");
 
-  // Ajouter colonnes si elles n'existent pas
   db.query(`
     ALTER TABLE utilisateur
     ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255),
     ADD COLUMN IF NOT EXISTS reset_expires DATETIME
   `, (err) => {
     if (err) console.error("Erreur ajout colonnes reset:", err);
-    else console.log("✅ Colonnes reset ajoutées");
   });
 
-  ensureLogementPhotoColumns()
-    .then((columns) => {
-      console.log("Colonnes logement detectees:", [...columns].join(", "));
-    })
-    .catch((schemaErr) => {
-      console.error("Erreur lecture schema logement:", schemaErr);
-    });
+  ensureLogementPhotoColumns().catch((err) => {
+    console.error("Erreur lecture schema logement:", err);
+  });
 });
 
 // ======================
-// AUTH MIDDLEWARE
+// AUTH MIDDLEWARES
 // ======================
 function auth(req, res, next) {
   const header = req.headers.authorization;
@@ -238,9 +193,24 @@ function auth(req, res, next) {
     return res.status(401).json({ error: "Token manquant" });
   }
   try {
+    req.user = jwt.verify(header.split(" ")[1], JWT_SECRET);
+    next();
+  } catch {
+    return res.status(401).json({ error: "Token invalide ou expiré" });
+  }
+}
+
+function authAdmin(req, res, next) {
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Token manquant" });
+  }
+  try {
     const decoded = jwt.verify(header.split(" ")[1], JWT_SECRET);
-    console.log("Decoded token:", decoded);
-    req.user = decoded;
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ error: "Accès réservé aux administrateurs" });
+    }
+    req.admin = decoded;
     next();
   } catch {
     return res.status(401).json({ error: "Token invalide ou expiré" });
@@ -248,19 +218,18 @@ function auth(req, res, next) {
 }
 
 // ======================
-// MULTER (PHOTO PROFIL)
+// MULTER
 // ======================
 const storage = multer.diskStorage({
   destination: "uploads/",
   filename: (req, file, cb) => {
-    const safeName = Date.now() + "-" + file.originalname.replace(/\s+/g, "_");
-    cb(null, safeName);
+    cb(null, Date.now() + "-" + file.originalname.replace(/\s+/g, "_"));
   }
 });
 const upload = multer({ storage });
 
 // ======================
-// PASSWORD VALIDATION REGEX
+// PASSWORD
 // ======================
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/;
 
@@ -286,11 +255,8 @@ app.post("/register", upload.single("photo"), async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     const photoFilename = req.file ? req.file.filename : null;
 
-    console.log("✅ Enregistrement - Photo:", photoFilename || "Aucune");
-
     db.query(
-      `INSERT INTO utilisateur (prenom, nom, username, email, password, photo)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      "INSERT INTO utilisateur (prenom, nom, username, email, password, photo) VALUES (?, ?, ?, ?, ?, ?)",
       [prenom, nom, email, email, hashed, photoFilename],
       (err, result) => {
         if (err) {
@@ -346,10 +312,7 @@ app.post("/login", (req, res) => {
       if (err) return res.status(500).json({ error: "Erreur vérification mot de passe" });
       if (!isMatch) return res.status(401).json({ error: "Email ou mot de passe incorrect" });
 
-      // Générer le token avec id_user
       const token = jwt.sign({ id_user: user.id_user }, JWT_SECRET, { expiresIn: "24h" });
-      console.log("Generated token for user ID:", user.id_user);
-
       res.json({
         token,
         user: {
@@ -371,63 +334,35 @@ app.post("/login", (req, res) => {
   });
 });
 
-// =====================================================
-// PROFIL — AFFICHAGE
-// =====================================================
+// ======================
+// PROFIL
+// ======================
 app.get("/profile", auth, (req, res) => {
   db.query(
     `SELECT id_user, prenom, nom, username, email, telephone,
             adresse, ecole, ecole_ville, date_naissance, genre, photo
-     FROM utilisateur
-     WHERE id_user = ?`,
+     FROM utilisateur WHERE id_user = ?`,
     [req.user.id_user],
     (err, rows) => {
       if (err) return res.status(500).json({ error: "Erreur SQL" });
       if (!rows.length) return res.status(404).json({ error: "Utilisateur introuvable" });
-
-      const user = rows[0];
-
-      res.json({
-        ...user,
-        photo: user.photo ? user.photo : null
-      });
+      res.json(rows[0]);
     }
   );
 });
 
-
-// =====================================================
-// PROFIL — MODIFICATION + PHOTO
-// =====================================================
 app.put("/profile", auth, upload.single("photo"), (req, res) => {
   const id_user = req.user.id_user;
+  const hasTextFields = Object.values(req.body).some(v => v !== undefined && v !== "");
 
-  console.log("PUT /profile - ID utilisateur:", id_user);
-  console.log("PUT /profile - Champs reçus:", Object.keys(req.body));
-  console.log("PUT /profile - Fichier photo:", req.file ? req.file.filename : "Aucun");
-
-  // Vérifier qu'au moins un champ est envoyé (texte ou photo)
-  const hasTextFields = Object.keys(req.body).some(key => req.body[key] !== undefined && req.body[key] !== "");
-  const hasPhoto = req.file ? true : false;
-
-  if (!hasTextFields && !hasPhoto) {
+  if (!hasTextFields && !req.file) {
     return res.status(400).json({ error: "Aucun champ à mettre à jour" });
   }
 
-  // Construire dynamiquement la requête UPDATE
+  const allowedFields = ["prenom", "nom", "username", "email", "telephone", "date_naissance", "genre"];
   const fields = [];
   const values = [];
-  const allowedFields = [
-    "prenom",
-    "nom",
-    "username",
-    "email",
-    "telephone",
-    "date_naissance",
-    "genre"
-  ];
 
-  // Ajouter UNIQUEMENT les champs qui ont une valeur non vide
   Object.keys(req.body).forEach(field => {
     if (allowedFields.includes(field) && req.body[field] !== undefined && req.body[field] !== "") {
       fields.push(`${field} = ?`);
@@ -435,40 +370,28 @@ app.put("/profile", auth, upload.single("photo"), (req, res) => {
     }
   });
 
-  // Ajouter la photo si présente
   if (req.file) {
     fields.push("photo = ?");
     values.push(req.file.filename);
-    console.log("Photo ajoutée:", req.file.filename);
   }
 
-  // Si aucun champ à mettre à jour, retourner erreur
   if (fields.length === 0) {
     return res.status(400).json({ error: "Aucun champ valide à mettre à jour" });
   }
 
-  // Ajouter l'ID pour la clause WHERE
   values.push(id_user);
 
-  const sql = `UPDATE utilisateur SET ${fields.join(", ")} WHERE id_user = ?`;
-
-  console.log("SQL générée:", sql);
-  console.log("Valeurs:", values);
-
-  db.query(sql, values, (err, result) => {
+  db.query(`UPDATE utilisateur SET ${fields.join(", ")} WHERE id_user = ?`, values, (err, result) => {
     if (err) {
-      console.error("❌ Erreur SQL:", err);
+      console.error("Erreur SQL profil:", err);
       if (err.code === "ER_DUP_ENTRY") {
         return res.status(400).json({ error: "Email ou username déjà utilisé" });
       }
       return res.status(500).json({ error: "Erreur lors de la mise à jour du profil" });
     }
-
     if (result.affectedRows === 0) {
       return res.status(404).json({ error: "Utilisateur non trouvé" });
     }
-
-    console.log("✅ Profil mis à jour avec succès pour l'utilisateur:", id_user);
     res.json({
       message: "Profil mis à jour avec succès",
       photoUrl: req.file ? `/uploads/${req.file.filename}` : null
@@ -491,23 +414,17 @@ app.put("/change-password", auth, (req, res) => {
     return res.status(400).json({ error: "Mot de passe trop faible. Il doit contenir au moins une majuscule, un chiffre, un caractère spécial et faire 8 caractères minimum" });
   }
 
-  // Récupérer le mot de passe actuel
   db.query("SELECT password FROM utilisateur WHERE id_user = ?", [id_user], (err, rows) => {
     if (err) return res.status(500).json({ error: "Erreur SQL" });
     if (rows.length === 0) return res.status(404).json({ error: "Utilisateur non trouvé" });
 
-    const hashedPassword = rows[0].password;
-
-    // Vérifier le mot de passe actuel
-    bcrypt.compare(currentPassword, hashedPassword, (err, isMatch) => {
+    bcrypt.compare(currentPassword, rows[0].password, (err, isMatch) => {
       if (err) return res.status(500).json({ error: "Erreur vérification mot de passe" });
       if (!isMatch) return res.status(401).json({ error: "Mot de passe actuel incorrect" });
 
-      // Hasher le nouveau mot de passe
       bcrypt.hash(newPassword, 10, (err, newHashed) => {
         if (err) return res.status(500).json({ error: "Erreur hashage mot de passe" });
 
-        // Mettre à jour en base
         db.query("UPDATE utilisateur SET password = ? WHERE id_user = ?", [newHashed, id_user], (err) => {
           if (err) return res.status(500).json({ error: "Erreur mise à jour mot de passe" });
           res.json({ message: "Mot de passe mis à jour avec succès" });
@@ -523,55 +440,44 @@ app.put("/change-password", auth, (req, res) => {
 app.post("/forgot-password", (req, res) => {
   const { email } = req.body;
 
-  console.log("POST /forgot-password - email:", email);
-
   if (!email) {
     return res.status(400).json({ error: "Email requis" });
   }
 
   db.query("SELECT id_user FROM utilisateur WHERE email = ?", [email], (err, rows) => {
-    if (err) {
-      console.error("Erreur SQL:", err.sqlMessage);
-      return res.status(500).json({ error: "Erreur SQL" });
-    }
-    if (rows.length === 0) {
-      return res.status(404).json({ error: "Email introuvable" });
-    }
+    if (err) return res.status(500).json({ error: "Erreur SQL" });
+    if (rows.length === 0) return res.status(404).json({ error: "Email introuvable" });
 
-    const user = rows[0];
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 3600000); // 1 heure
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 3600000);
 
-    db.query("UPDATE utilisateur SET reset_token = ?, reset_expires = ? WHERE id_user = ?", [resetToken, expires, user.id_user], (err) => {
-      if (err) {
-        console.error("Erreur SQL:", err.sqlMessage);
-        return res.status(500).json({ error: "Erreur SQL" });
+    db.query(
+      "UPDATE utilisateur SET reset_token = ?, reset_expires = ? WHERE id_user = ?",
+      [resetToken, expires, rows[0].id_user],
+      (err) => {
+        if (err) return res.status(500).json({ error: "Erreur SQL" });
+
+        const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
+        transporter.sendMail({
+          from: process.env.EMAIL_USER,
+          to: email,
+          subject: "Réinitialisation de mot de passe",
+          text: `Cliquez sur ce lien pour réinitialiser votre mot de passe : ${resetLink}`,
+          html: `<p>Cliquez sur ce lien pour réinitialiser votre mot de passe : <a href="${resetLink}">${resetLink}</a></p>`
+        }, (error) => {
+          if (error) {
+            console.error("Erreur envoi email:", error);
+            return res.status(500).json({ error: "Erreur envoi email" });
+          }
+          res.json({ message: `Lien de réinitialisation envoyé à ${email}` });
+        });
       }
-
-      const resetLink = `${FRONTEND_URL}/reset-password?token=${resetToken}`;
-
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: email,
-        subject: 'Réinitialisation de mot de passe',
-        text: `Cliquez sur ce lien pour réinitialiser votre mot de passe : ${resetLink}`,
-        html: `<p>Cliquez sur ce lien pour réinitialiser votre mot de passe : <a href="${resetLink}">${resetLink}</a></p>`
-      };
-
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("Erreur envoi email:", error);
-          return res.status(500).json({ error: "Erreur envoi email" });
-        }
-        console.log("Email envoyé:", info.response);
-        res.json({ message: `Lien de réinitialisation envoyé à ${email}` });
-      });
-    });
+    );
   });
 });
 
 // ======================
-// LOGEMENTS — AFFICHAGE
+// LOGEMENTS
 // ======================
 app.get("/logements", (req, res) => {
   db.query("SELECT * FROM logement", (err, rows) => {
@@ -581,29 +487,60 @@ app.get("/logements", (req, res) => {
 });
 
 app.get("/logements/:id", (req, res) => {
-  const { id } = req.params;
-  db.query("SELECT * FROM logement WHERE id_logement = ?", [id], (err, rows) => {
+  db.query("SELECT * FROM logement WHERE id_logement = ?", [req.params.id], (err, rows) => {
     if (err) return res.status(500).json({ error: "Erreur SQL" });
     if (rows.length === 0) return res.status(404).json({ error: "Logement non trouvé" });
     res.json(normalizeLogementRow(rows[0]));
   });
 });
 
-// ======================
-// MES LOGEMENTS
-// ======================
 app.get("/mes-logements", auth, (req, res) => {
-  const id_user = req.user.id_user;
-  console.log("GET /mes-logements - User ID:", id_user);
-  db.query("SELECT * FROM logement WHERE id_user = ?", [id_user], (err, rows) => {
+  db.query("SELECT * FROM logement WHERE id_user = ?", [req.user.id_user], (err, rows) => {
     if (err) return res.status(500).json({ error: "Erreur SQL" });
     res.json(rows.map(normalizeLogementRow));
   });
 });
 
-// ======================
-// MODIFIER LOGEMENT
-// ======================
+app.post("/logements", auth, upload.single("image"), (req, res) => {
+  const { titre, ville, universite, prix, type, adresse, description } = req.body;
+  const image = req.file ? req.file.filename : undefined;
+
+  if (!titre || !ville || prix === undefined || prix === null || prix === "") {
+    return res.status(400).json({ error: "Titre, ville et prix obligatoires" });
+  }
+
+  return loadLogementColumns()
+    .then((columns) => {
+      const payload = buildLogementPayload(
+        { titre, ville, universite, prix, type, adresse, description },
+        columns,
+        { imageFilenames: image ? [image] : [], ownerId: req.user.id_user }
+      );
+      const fields = Object.keys(payload);
+
+      if (!fields.includes("titre") || !fields.includes("ville") || !fields.includes("prix")) {
+        return res.status(500).json({ error: "Colonnes obligatoires manquantes dans la table logement" });
+      }
+
+      const sql = `INSERT INTO logement (${fields.join(", ")}) VALUES (${fields.map(() => "?").join(", ")})`;
+
+      db.query(sql, fields.map((f) => payload[f]), (err, result) => {
+        if (err) {
+          console.error("Erreur SQL ajout logement:", err);
+          return res.status(500).json({ error: "Erreur SQL" });
+        }
+        res.status(201).json({
+          message: "Logement ajouté avec succès",
+          logement: normalizeLogementRow({ id_logement: result.insertId, ...payload })
+        });
+      });
+    })
+    .catch((err) => {
+      console.error("Erreur schema logement:", err);
+      res.status(500).json({ error: "Erreur SQL" });
+    });
+});
+
 app.put("/logements/:id", auth, upload.single("image"), (req, res) => {
   const { id } = req.params;
   const id_user = req.user.id_user;
@@ -614,7 +551,6 @@ app.put("/logements/:id", auth, upload.single("image"), (req, res) => {
     return res.status(400).json({ error: "Titre, ville et prix obligatoires" });
   }
 
-  // Vérifier que le logement appartient à l'utilisateur
   return loadLogementColumns()
     .then((columns) => {
       const ownerColumn = getOwnerColumn(columns);
@@ -637,50 +573,40 @@ app.put("/logements/:id", auth, upload.single("image"), (req, res) => {
         const fields = Object.keys(payload);
 
         if (fields.length === 0) {
-          return res.status(400).json({ error: "Aucune donnee a mettre a jour" });
+          return res.status(400).json({ error: "Aucune donnée à mettre à jour" });
         }
 
-        const sql = `UPDATE logement SET ${fields.map((field) => `${field} = ?`).join(", ")} WHERE id_logement = ?`;
-        const values = [...fields.map((field) => payload[field]), id];
+        const sql = `UPDATE logement SET ${fields.map((f) => `${f} = ?`).join(", ")} WHERE id_logement = ?`;
 
-        db.query(sql, values, (updateErr) => {
-          if (updateErr) {
-            console.error("Erreur SQL lors de la modification du logement:", updateErr);
+        db.query(sql, [...fields.map((f) => payload[f]), id], (err) => {
+          if (err) {
+            console.error("Erreur SQL modification logement:", err);
             return res.status(500).json({ error: "Erreur SQL" });
           }
           res.json({ message: "Logement mis à jour avec succès" });
         });
       });
     })
-    .catch((schemaErr) => {
-      console.error("Erreur schema logement:", schemaErr);
+    .catch((err) => {
+      console.error("Erreur schema logement:", err);
       res.status(500).json({ error: "Erreur SQL" });
     });
 });
 
-// ======================
-// SUPPRIMER LOGEMENT (AVEC CASCADE)
-// ======================
 app.delete("/logements/:id", auth, (req, res) => {
   const { id } = req.params;
   const id_user = req.user.id_user;
 
-  // Vérifier propriété
   db.query("SELECT id_user FROM logement WHERE id_logement = ?", [id], (err, rows) => {
     if (err) return res.status(500).json({ error: "Erreur SQL" });
     if (rows.length === 0) return res.status(404).json({ error: "Logement non trouvé" });
-    if (rows[0].id_user !== id_user) {
-      return res.status(403).json({ error: "Non autorisé" });
-    }
+    if (rows[0].id_user !== id_user) return res.status(403).json({ error: "Non autorisé" });
 
-    // Supprimer les favoris associés
     db.query("DELETE FROM user_likes WHERE id_logement = ?", [id], (err) => {
-      if (err) return res.status(500).json({ error: "Erreur SQL lors de la suppression des favoris" });
+      if (err) return res.status(500).json({ error: "Erreur SQL" });
 
-      // Supprimer le logement
       db.query("DELETE FROM logement WHERE id_logement = ?", [id], (err) => {
-        if (err) return res.status(500).json({ error: "Erreur SQL lors de la suppression du logement" });
-
+        if (err) return res.status(500).json({ error: "Erreur SQL" });
         res.json({ message: "Logement et favoris associés supprimés avec succès" });
       });
     });
@@ -688,41 +614,34 @@ app.delete("/logements/:id", auth, (req, res) => {
 });
 
 // ======================
-// LIKE/UNLIKE LOGEMENT
+// LIKE / UNLIKE
 // ======================
 app.post("/logements/:id/like", auth, (req, res) => {
   const { id } = req.params;
   const id_user = req.user.id_user;
 
   function respondWithLikesCount() {
-    db.query("SELECT likes_count FROM logement WHERE id_logement = ?", [id], (countErr, countRows) => {
-      if (countErr) return res.status(500).json({ error: "Erreur SQL" });
-      if (countRows.length === 0) return res.status(404).json({ error: "Logement non trouve" });
-      res.json({ likes_count: countRows[0].likes_count });
+    db.query("SELECT likes_count FROM logement WHERE id_logement = ?", [id], (err, rows) => {
+      if (err) return res.status(500).json({ error: "Erreur SQL" });
+      if (rows.length === 0) return res.status(404).json({ error: "Logement non trouvé" });
+      res.json({ likes_count: rows[0].likes_count });
     });
   }
 
-  // Vérifier si déjà liké
   db.query("SELECT * FROM user_likes WHERE id_user = ? AND id_logement = ?", [id_user, id], (err, rows) => {
     if (err) return res.status(500).json({ error: "Erreur SQL" });
 
     if (rows.length > 0) {
-      // Déjà liké, donc unlike
       db.query("DELETE FROM user_likes WHERE id_user = ? AND id_logement = ?", [id_user, id], (err) => {
         if (err) return res.status(500).json({ error: "Erreur SQL" });
-
-        // Mettre à jour le compteur de likes
         db.query("UPDATE logement SET likes_count = likes_count - 1 WHERE id_logement = ?", [id], (err) => {
           if (err) return res.status(500).json({ error: "Erreur SQL" });
           respondWithLikesCount();
         });
       });
     } else {
-      // Pas encore liké, donc like
       db.query("INSERT INTO user_likes (id_user, id_logement) VALUES (?, ?)", [id_user, id], (err) => {
         if (err) return res.status(500).json({ error: "Erreur SQL" });
-
-        // Mettre à jour le compteur de likes
         db.query("UPDATE logement SET likes_count = likes_count + 1 WHERE id_logement = ?", [id], (err) => {
           if (err) return res.status(500).json({ error: "Erreur SQL" });
           respondWithLikesCount();
@@ -733,59 +652,10 @@ app.post("/logements/:id/like", auth, (req, res) => {
 });
 
 // ======================
-// LOGEMENTS — AJOUT
-// ======================
-app.post("/logements", auth, upload.single("image"), (req, res) => {
-  const { titre, ville, universite, prix, type, adresse, description } = req.body;
-  const id_user = req.user.id_user;
-  const image = req.file ? req.file.filename : undefined;
-
-  if (!titre || !ville || prix === undefined || prix === null || prix === "") {
-    return res.status(400).json({ error: "Titre, ville et prix obligatoires" });
-  }
-
-  return loadLogementColumns()
-    .then((columns) => {
-      const payload = buildLogementPayload(
-        { titre, ville, universite, prix, type, adresse, description },
-        columns,
-        { imageFilenames: image ? [image] : [], ownerId: id_user }
-      );
-      const fields = Object.keys(payload);
-
-      if (!fields.includes("titre") || !fields.includes("ville") || !fields.includes("prix")) {
-        return res.status(500).json({ error: "Colonnes obligatoires manquantes dans la table logement" });
-      }
-
-      const sql = `INSERT INTO logement (${fields.join(", ")}) VALUES (${fields.map(() => "?").join(", ")})`;
-      const values = fields.map((field) => payload[field]);
-
-      db.query(sql, values, (err, result) => {
-        if (err) {
-          console.error("Erreur SQL lors de l'ajout de logement:", err);
-          return res.status(500).json({ error: "Erreur SQL" });
-        }
-        res.status(201).json({
-          message: "Logement ajouté avec succès",
-          logement: normalizeLogementRow({
-            id_logement: result.insertId,
-            ...payload
-          })
-        });
-      });
-    })
-    .catch((schemaErr) => {
-      console.error("Erreur schema logement:", schemaErr);
-      res.status(500).json({ error: "Erreur SQL" });
-    });
-});
-
-// ======================
 // AVIS
 // ======================
 app.post("/avis", auth, (req, res) => {
   const { id_logement, contenu, note } = req.body;
-  const id_user = req.user.id_user;
 
   if (!id_logement || !contenu) {
     return res.status(400).json({ error: "Champs obligatoires manquants" });
@@ -793,21 +663,17 @@ app.post("/avis", auth, (req, res) => {
 
   db.query(
     "INSERT INTO avis (id_user, id_logement, contenu, note) VALUES (?, ?, ?, ?)",
-    [id_user, id_logement, contenu, note || 5],
+    [req.user.id_user, id_logement, contenu, note || 5],
     (err, result) => {
       if (err) {
         console.error("Erreur insertion avis:", err);
         return res.status(500).json({ error: "Erreur SQL" });
       }
-      // Récupérer l'avis inséré
       db.query(
-        `SELECT a.*, u.prenom, u.nom FROM avis a JOIN utilisateur u ON a.id_user = u.id_user WHERE a.id_avis = ?`,
+        "SELECT a.*, u.prenom, u.nom FROM avis a JOIN utilisateur u ON a.id_user = u.id_user WHERE a.id_avis = ?",
         [result.insertId],
-        (err2, rows) => {
-          if (err2) {
-            console.error("Erreur récupération avis:", err2);
-            return res.status(500).json({ error: "Erreur récupération avis" });
-          }
+        (err, rows) => {
+          if (err) return res.status(500).json({ error: "Erreur récupération avis" });
           res.status(201).json(rows[0]);
         }
       );
@@ -816,72 +682,46 @@ app.post("/avis", auth, (req, res) => {
 });
 
 app.get("/avis/:id_logement", (req, res) => {
-  const { id_logement } = req.params;
   db.query(
-    `SELECT a.*, u.prenom, u.nom FROM avis a JOIN utilisateur u ON a.id_user = u.id_user WHERE a.id_logement = ? ORDER BY a.date DESC`,
-    [id_logement],
+    "SELECT a.*, u.prenom, u.nom FROM avis a JOIN utilisateur u ON a.id_user = u.id_user WHERE a.id_logement = ? ORDER BY a.date DESC",
+    [req.params.id_logement],
     (err, rows) => {
       if (err) return res.status(500).json({ error: "Erreur SQL" });
       res.json(rows);
     }
   );
 });
-// Route de connexion pour l'administrateur
-// Elle verifie les identifiants dans la table admin_user
+
+// ======================
+// ADMIN
+// ======================
 app.post("/admin/login", async (req, res) => {
-  // Recupere le nom d'utilisateur et le mot de passe envoyes
   const { username, password } = req.body;
 
-  // Verifie que les champs ne sont pas vides
   if (!username || !password) {
     return res.status(400).json({ error: "Champs obligatoires manquants" });
   }
 
-  // Cherche l'admin dans la base de donnees
-  db.query(
-    "SELECT password_hash FROM admin_user WHERE username = ?",
-    [username],
-    async (err, rows) => {
-      // En cas d'erreur SQL
-      if (err) return res.status(500).json({ error: "Erreur SQL" });
+  db.query("SELECT password_hash FROM admin_user WHERE username = ?", [username], async (err, rows) => {
+    if (err) return res.status(500).json({ error: "Erreur SQL" });
+    if (rows.length === 0) return res.status(401).json({ error: "Identifiants incorrects" });
 
-      // Si aucun admin trouve
-      if (rows.length === 0) {
-        return res.status(401).json({ error: "Identifiants incorrects" });
-      }
+    const isMatch = await bcrypt.compare(password, rows[0].password_hash);
+    if (!isMatch) return res.status(401).json({ error: "Identifiants incorrects" });
 
-      // Recupere le mot de passe hache stocke en base
-      const storedHash = rows[0].password_hash;
-
-      // Compare le mot de passe saisi avec le hash stocke
-      const isMatch = await bcrypt.compare(password, storedHash);
-
-      // Si le mot de passe est incorrect
-      if (!isMatch) {
-        return res.status(401).json({ error: "Identifiants incorrects" });
-      }
-
-      // Connexion reussie - retourne un token JWT
-      const token = jwt.sign({ role: "admin", username }, JWT_SECRET, { expiresIn: "24h" });
-      res.json({ message: "Connexion reussie", token });
-    }
-  );
+    const token = jwt.sign({ role: "admin", username }, JWT_SECRET, { expiresIn: "24h" });
+    res.json({ message: "Connexion réussie", token });
+  });
 });
 
-// Route pour recuperer tous les utilisateurs - reservee a l'admin
-app.get("/admin/users", (req, res) => {
-  // Recupere tous les utilisateurs de la base
-  db.query(
-    "SELECT id_user, nom, prenom, email FROM utilisateur ORDER BY id_user",
-    (err, rows) => {
-      if (err) return res.status(500).json({ error: "Erreur SQL" });
-      res.json(rows);
-    }
-  );
+app.get("/admin/users", authAdmin, (req, res) => {
+  db.query("SELECT id_user, nom, prenom, email FROM utilisateur ORDER BY id_user", (err, rows) => {
+    if (err) return res.status(500).json({ error: "Erreur SQL" });
+    res.json(rows);
+  });
 });
 
-// Route pour supprimer un utilisateur - reservee a l'admin
-app.delete("/admin/users/:id", (req, res) => {
+app.delete("/admin/users/:id", authAdmin, (req, res) => {
   const { id } = req.params;
 
   db.query("DELETE FROM avis WHERE id_user = ?", [id], (err) => {
@@ -895,15 +735,14 @@ app.delete("/admin/users/:id", (req, res) => {
 
         db.query("DELETE FROM utilisateur WHERE id_user = ?", [id], (err) => {
           if (err) return res.status(500).json({ error: "Erreur SQL" });
-          res.json({ message: "Utilisateur supprime" });
+          res.json({ message: "Utilisateur supprimé" });
         });
       });
     });
   });
 });
 
-// Route pour supprimer un logement - reservee a l'admin
-app.delete("/admin/logements/:id", (req, res) => {
+app.delete("/admin/logements/:id", authAdmin, (req, res) => {
   const { id } = req.params;
 
   db.query("DELETE FROM avis WHERE id_logement = ?", [id], (err) => {
@@ -914,14 +753,13 @@ app.delete("/admin/logements/:id", (req, res) => {
 
       db.query("DELETE FROM logement WHERE id_logement = ?", [id], (err) => {
         if (err) return res.status(500).json({ error: "Erreur SQL" });
-        res.json({ message: "Logement supprime" });
+        res.json({ message: "Logement supprimé" });
       });
     });
   });
 });
+
 // ======================
 app.get("/", (_, res) => res.send("API OK"));
 
-app.listen(PORT, () =>
-  console.log(`🚀 API lancée sur le port ${PORT}`)
-);
+app.listen(PORT, () => console.log(`🚀 API lancée sur le port ${PORT}`));
