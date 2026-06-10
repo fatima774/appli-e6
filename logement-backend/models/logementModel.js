@@ -1,24 +1,38 @@
+/**
+ * FICHIER: models/logementModel.js
+ * Rôle: Fonctions d'accès à la base de données pour les logements (CRUD), gestion des favoris et photos.
+ */
+
 const db = require("../config/db");
 
 // =====================
-// HELPERS SCHEMA
+// HELPERS SCHEMA - Fonctions utilitaires pour gérer les colonnes de la table
 // =====================
 
 let logementColumnsPromise = null;
 
+/**
+ * Charger les noms de colonnes de la table logement (en cache)
+ */
 function loadLogementColumns(forceRefresh = false) {
   if (!forceRefresh && logementColumnsPromise) return logementColumnsPromise;
   logementColumnsPromise = new Promise((resolve, reject) => {
+    // Requête SQL pour récupérer les colonnes de la table logement
     db.query("SHOW COLUMNS FROM logement", (err, rows) => {
       if (err) return reject(err);
+      // Retourner un Set pour une recherche rapide
       resolve(new Set(rows.map((row) => row.Field)));
     });
   });
   return logementColumnsPromise;
 }
 
+/**
+ * Ajouter la colonne 'photos' si elle n'existe pas
+ */
 function ensureLogementPhotoColumns() {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour créer la colonne photos si elle n'existe pas
     db.query(
       "ALTER TABLE logement ADD COLUMN IF NOT EXISTS photos TEXT NULL",
       (err) => {
@@ -29,6 +43,9 @@ function ensureLogementPhotoColumns() {
   });
 }
 
+/**
+ * Trouver le nom de la colonne propriétaire (selon le schéma)
+ */
 function getOwnerColumn(columns) {
   if (columns.has("id_user")) return "id_user";
   if (columns.has("user_id")) return "user_id";
@@ -37,25 +54,36 @@ function getOwnerColumn(columns) {
   return null;
 }
 
+/**
+ * Trouver le nom de la colonne image (selon le schéma)
+ */
 function getImageColumn(columns) {
   if (columns.has("image")) return "image";
   if (columns.has("photo")) return "photo";
   return null;
 }
 
+/**
+ * Normaliser une valeur optionnelle (null, undefined ou chaîne vide)
+ */
 function normalizeOptionalValue(value) {
   if (value === undefined || value === null) return null;
   if (typeof value === "string" && value.trim() === "") return null;
   return value;
 }
 
+/**
+ * Normaliser un logement (traiter les photos JSON ou délimitées par virgules)
+ */
 function normalizeLogementRow(row) {
   if (!row) return row;
   let photos = row.photos;
   if (typeof photos === "string") {
     try {
+      // Essayer de parser en JSON
       photos = JSON.parse(photos);
     } catch {
+      // Sinon, diviser par virgule
       photos = photos.split(",").map((p) => p.trim()).filter(Boolean);
     }
   }
@@ -64,16 +92,25 @@ function normalizeLogementRow(row) {
   return { ...row, image: primaryImage, photos };
 }
 
+/**
+ * Sérialiser les photos en JSON
+ */
 function serializePhotos(files) {
   if (!Array.isArray(files) || files.length === 0) return null;
   return JSON.stringify(files);
 }
 
+/**
+ * Obtenir la première photo (image principale)
+ */
 function getPrimaryPhoto(files) {
   if (!Array.isArray(files) || files.length === 0) return undefined;
   return files[0];
 }
 
+/**
+ * Ajouter les colonnes image et photos au payload
+ */
 function setImageFields(payload, columns, files) {
   const imageColumn = getImageColumn(columns);
   const primaryPhoto = getPrimaryPhoto(files);
@@ -83,6 +120,9 @@ function setImageFields(payload, columns, files) {
   return payload;
 }
 
+/**
+ * Construire le payload pour créer/mettre à jour un logement
+ */
 function buildLogementPayload(body, columns, options = {}) {
   const payload = {};
   const entries = [
@@ -104,12 +144,18 @@ function buildLogementPayload(body, columns, options = {}) {
   return payload;
 }
 
+
+
 // =====================
-// REQUÊTES SQL
+// REQUÊTES SQL - Fonctions pour interagir avec la base de données
 // =====================
 
+/**
+ * Récupérer tous les logements
+ */
 function findAll() {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour lister tous les logements
     db.query("SELECT * FROM logement", (err, rows) => {
       if (err) return reject(err);
       resolve(rows.map(normalizeLogementRow));
@@ -117,8 +163,12 @@ function findAll() {
   });
 }
 
+/**
+ * Récupérer un logement par son ID
+ */
 function findById(id) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour trouver un logement spécifique
     db.query("SELECT * FROM logement WHERE id_logement = ?", [id], (err, rows) => {
       if (err) return reject(err);
       resolve(rows[0] ? normalizeLogementRow(rows[0]) : null);
@@ -126,8 +176,12 @@ function findById(id) {
   });
 }
 
+/**
+ * Récupérer tous les logements d'un utilisateur
+ */
 function findByUserId(userId) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour lister les logements de l'utilisateur
     db.query("SELECT * FROM logement WHERE id_user = ?", [userId], (err, rows) => {
       if (err) return reject(err);
       resolve(rows.map(normalizeLogementRow));
@@ -135,8 +189,12 @@ function findByUserId(userId) {
   });
 }
 
+/**
+ * Récupérer le propriétaire d'un logement
+ */
 function findOwner(id, ownerColumn) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour vérifier le propriétaire
     db.query(
       `SELECT ${ownerColumn} FROM logement WHERE id_logement = ?`,
       [id],
@@ -148,8 +206,12 @@ function findOwner(id, ownerColumn) {
   });
 }
 
+/**
+ * Insérer un nouveau logement
+ */
 function insert(fields, values) {
   return new Promise((resolve, reject) => {
+    // Construire dynamiquement la requête SQL INSERT avec les champs fournis
     const sql = `INSERT INTO logement (${fields.join(", ")}) VALUES (${fields.map(() => "?").join(", ")})`;
     db.query(sql, values, (err, result) => {
       if (err) return reject(err);
@@ -158,8 +220,12 @@ function insert(fields, values) {
   });
 }
 
+/**
+ * Mettre à jour un logement
+ */
 function update(setClause, values) {
   return new Promise((resolve, reject) => {
+    // Requête SQL dynamique pour mettre à jour les champs fournis
     db.query(
       `UPDATE logement SET ${setClause} WHERE id_logement = ?`,
       values,
@@ -171,8 +237,12 @@ function update(setClause, values) {
   });
 }
 
+/**
+ * Supprimer un logement
+ */
 function deleteById(id) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour supprimer un logement
     db.query("DELETE FROM logement WHERE id_logement = ?", [id], (err) => {
       if (err) return reject(err);
       resolve();
@@ -180,8 +250,12 @@ function deleteById(id) {
   });
 }
 
+/**
+ * Supprimer tous les favoris associés à un logement
+ */
 function deleteLikesByLogement(id) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour supprimer les likes du logement
     db.query("DELETE FROM user_likes WHERE id_logement = ?", [id], (err) => {
       if (err) return reject(err);
       resolve();
@@ -189,8 +263,12 @@ function deleteLikesByLogement(id) {
   });
 }
 
+/**
+ * Vérifier si un utilisateur a aimé un logement
+ */
 function findLike(userId, logementId) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour vérifier l'existence d'un favori
     db.query(
       "SELECT * FROM user_likes WHERE id_user = ? AND id_logement = ?",
       [userId, logementId],
@@ -202,8 +280,12 @@ function findLike(userId, logementId) {
   });
 }
 
+/**
+ * Ajouter un logement aux favoris
+ */
 function addLike(userId, logementId) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour insérer un like
     db.query(
       "INSERT INTO user_likes (id_user, id_logement) VALUES (?, ?)",
       [userId, logementId],
@@ -215,8 +297,12 @@ function addLike(userId, logementId) {
   });
 }
 
+/**
+ * Retirer un logement des favoris
+ */
 function removeLike(userId, logementId) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour supprimer un like
     db.query(
       "DELETE FROM user_likes WHERE id_user = ? AND id_logement = ?",
       [userId, logementId],
@@ -228,9 +314,14 @@ function removeLike(userId, logementId) {
   });
 }
 
+/**
+ * Mettre à jour le nombre de likes d'un logement
+ */
 function updateLikesCount(id, delta) {
+  // Incrémenter ou décrémenter le compteur
   const op = delta > 0 ? "likes_count + 1" : "likes_count - 1";
   return new Promise((resolve, reject) => {
+    // Requête SQL pour mettre à jour le compteur
     db.query(
       `UPDATE logement SET likes_count = ${op} WHERE id_logement = ?`,
       [id],
@@ -242,8 +333,12 @@ function updateLikesCount(id, delta) {
   });
 }
 
+/**
+ * Récupérer le nombre de likes d'un logement
+ */
 function getLikesCount(id) {
   return new Promise((resolve, reject) => {
+    // Requête SQL pour lire le compteur de likes
     db.query(
       "SELECT likes_count FROM logement WHERE id_logement = ?",
       [id],

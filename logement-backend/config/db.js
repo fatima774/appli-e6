@@ -1,5 +1,11 @@
+/**
+ * FICHIER: config/db.js
+ * Rôle: Configurer et créer la connexion à la base de données MySQL.
+ */
+
 const mysql = require("mysql2");
 
+// Créer une connexion MySQL avec les paramètres de l'environnement
 const db = mysql.createConnection({
   host: process.env.DB_HOST || "localhost",
   user: process.env.DB_USER || "root",
