@@ -83,26 +83,6 @@ const handleEquipementChange = (e) => {
   }
 };
 
-
-// On récupère l'id du logement créé
-const data = await response.json().catch(() => null);
-
-// Si des équipements ont été cochés, on les sauvegarde
-if (data?.logement?.id_logement && selectedEquipements.length > 0) {
-  await fetch(`${API_URL}/logements/${data.logement.id_logement}/equipements`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ ids: selectedEquipements })
-  });
-}
-
-
-
-
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -141,7 +121,20 @@ if (data?.logement?.id_logement && selectedEquipements.length > 0) {
         throw new Error(data.error || `Erreur HTTP ${response.status}`);
       }
 
-      await response.json().catch(() => null);
+      const data = await response.json().catch(() => null);
+
+      // Si des équipements ont été cochés, on les sauvegarde
+      if (data?.logement?.id_logement && selectedEquipements.length > 0) {
+        await fetch(`${API_URL}/logements/${data.logement.id_logement}/equipements`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ ids: selectedEquipements })
+        });
+      }
+
       alert("Logement publie avec succes !");
       navigate("/");
     } catch (err) {
