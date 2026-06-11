@@ -17,9 +17,41 @@ export default function AddPage() {
   const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+
+
+
+
+
+  // Liste de tous les équipements disponibles (WiFi, Parking...)
+const [equipements, setEquipements] = useState([]);
+
+// Liste des ids des équipements cochés par l'utilisateur
+const [selectedEquipements, setSelectedEquipements] = useState([]);
+
+
+
+
+
   const navigate = useNavigate();
 
   const token = localStorage.getItem("token");
+
+
+
+
+  // Au chargement de la page, on récupère tous les équipements disponibles
+// pour les afficher sous forme de cases à cocher
+React.useEffect(() => {
+  fetch(`${API_URL}/equipements`)
+    .then(res => res.json())
+    .then(data => setEquipements(data))
+    .catch(() => setEquipements([]));
+}, []);
+
+
+
+
 
   if (!token) {
     navigate("/login");
@@ -31,6 +63,45 @@ export default function AddPage() {
     setImage(file);
     setPreviews(file ? [URL.createObjectURL(file)] : []);
   };
+
+
+
+
+
+
+
+// Quand l'utilisateur coche ou décoche un équipement
+// On ajoute ou retire son id de la liste selectedEquipements
+const handleEquipementChange = (e) => {
+  const id = parseInt(e.target.value);
+  if (e.target.checked) {
+    // Si coché, on ajoute l'id
+    setSelectedEquipements(prev => [...prev, id]);
+  } else {
+    // Si décoché, on retire l'id
+    setSelectedEquipements(prev => prev.filter(eq => eq !== id));
+  }
+};
+
+
+// On récupère l'id du logement créé
+const data = await response.json().catch(() => null);
+
+// Si des équipements ont été cochés, on les sauvegarde
+if (data?.logement?.id_logement && selectedEquipements.length > 0) {
+  await fetch(`${API_URL}/logements/${data.logement.id_logement}/equipements`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ ids: selectedEquipements })
+  });
+}
+
+
+
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -208,6 +279,32 @@ export default function AddPage() {
               disabled={loading}
             />
           </div>
+
+
+
+
+{/* Section cases à cocher pour les équipements */}
+<div className="form-group">
+  <label className="form-label">Équipements disponibles</label>
+  {equipements.map(eq => (
+    <div key={eq.id_equipement}>
+      <label>
+        <input
+          type="checkbox"
+          value={eq.id_equipement}
+          onChange={handleEquipementChange}
+          disabled={loading}
+        />
+        {" "}{eq.libelle}
+      </label>
+    </div>
+  ))}
+</div>
+
+
+
+
+
 
           <button className="auth-btn" type="submit" disabled={loading}>
             {loading ? "Publication en cours..." : "Publier"}

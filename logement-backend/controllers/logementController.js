@@ -191,5 +191,40 @@ async function toggleLike(req, res) {
     res.status(500).json({ error: "Erreur SQL" });
   }
 }
+/**
+ * Récupérer tous les équipements disponibles
+ * GET /equipements
+ * Rôle : Retourne la liste de tous les équipements (WiFi, Parking...)
+ * pour les afficher sous forme de cases à cocher dans le formulaire
+ */
+async function getEquipements(req, res) {
+  try {
+    // On appelle le model qui fait le SELECT * FROM equipement
+    const equipements = await logementModel.getEquipements();
+    // On retourne la liste en JSON au frontend
+    res.json(equipements);
+  } catch {
+    res.status(500).json({ error: "Erreur lors de la récupération des équipements" });
+  }
+}
 
-module.exports = { getAll, getOne, getMine, create, update, remove, toggleLike };
+/**
+ * Sauvegarder les équipements cochés pour un logement
+ * 
+ * Rôle : Reçoit la liste des équipements cochés et les sauvegarde
+ * dans la table associative logement_equipement
+ */
+async function saveEquipements(req, res) {
+  try {
+    // On récupère l'id du logement depuis l'URL
+    const id_logement = req.params.id;
+    // On récupère la liste des ids cochés envoyée par le frontend
+    const { ids } = req.body;
+    // On appelle le model pour sauvegarder dans logement_equipement
+    await logementModel.saveEquipements(id_logement, ids);
+    res.json({ message: "Équipements sauvegardés avec succès" });
+  } catch {
+    res.status(500).json({ error: "Erreur lors de la sauvegarde des équipements" });
+  }
+}
+module.exports = { getAll, getOne, getMine, create, update, remove, toggleLike, getEquipements, saveEquipements  };

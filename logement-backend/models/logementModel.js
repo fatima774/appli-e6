@@ -349,6 +349,104 @@ function getLikesCount(id) {
     );
   });
 }
+/**
+ * FONCTION 1 : Récupérer tous les équipements disponibles
+ *
+ *
+ *
+ * */
+function getEquipements() {
+  return new Promise((resolve, reject) => {
+    //requete sql pour récupérer tous les équipements disponibles
+    db.query("SELECT * FROM equipement", (err, rows) => {
+      //si erreur , on l'envoie au controller
+      if (err) return reject(err);
+      //sinon on retourne les équipements
+      resolve(rows);
+    });
+  });
+}
+
+/**
+ * FONCTION 2 : Récupérer les équipements d'un logement précis
+ *
+ */function getEquipementsByLogement(id_logement) {
+  return new Promise((resolve, reject) => {
+    // On fait une jointure entre les deux tables :
+    // logement_equipement nous dit quels équipements appartiennent au logement
+    // equipement nous donne le libellé (WiFi, Parking...)
+    db.query(
+      `SELECT equipement.* 
+       FROM equipement 
+       JOIN logement_equipement 
+       ON equipement.id_equipement = logement_equipement.id_equipement 
+       WHERE logement_equipement.id_logement = ?`,
+      [id_logement],
+      (err, rows) => {
+        if (err) return reject(err);
+        resolve(rows);
+      }
+    );
+  });
+}
+
+/**
+ * FONCTION 3 : Sauvegarder les équipements cochés par l'utilisateur
+
+ */
+function saveEquipements(id_logement, ids) {
+  return new Promise((resolve, reject) => {
+    // Étape 1 : On supprime les anciens équipements du logement
+    db.query(
+      "DELETE FROM logement_equipement WHERE id_logement = ?",
+      [id_logement],
+      (err) => {
+        if (err) return reject(err);
+        // Si aucun équipement coché, on s'arrête là
+        if (!ids || ids.length === 0) return resolve();
+        // Étape 2 : On insère les nouveaux équipements cochés
+        // values = [[1,1], [1,3]] par exemple pour le logement 1 avec WiFi et Meublé
+        const values = ids.map(id => [id_logement, id]);
+        db.query(
+          "INSERT INTO logement_equipement (id_logement, id_equipement) VALUES ?",
+          [values],
+          (err) => {
+            if (err) return reject(err);
+            resolve();
+          }
+        );
+      }
+    );
+  });
+}
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 module.exports = {
   loadLogementColumns,
@@ -368,5 +466,8 @@ module.exports = {
   addLike,
   removeLike,
   updateLikesCount,
-  getLikesCount
+  getLikesCount,
+  getEquipements,
+getEquipementsByLogement,
+saveEquipements
 };

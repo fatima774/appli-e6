@@ -7,7 +7,7 @@ const express = require("express");
 const router = express.Router();
 const upload = require("../config/multer");
 const auth = require("../middlewares/auth");
-const { getAll, getOne, getMine, create, update, remove, toggleLike } = require("../controllers/logementController");
+const { getAll, getOne, getMine, create, update, remove, toggleLike, getEquipements, saveEquipements } = require("../controllers/logementController");
 
 // Route pour récupérer tous les logements (GET) - publique
 router.get("/logements", getAll);
@@ -30,4 +30,9 @@ router.delete("/logements/:id", auth, remove);
 // Route pour aimer/désaimer un logement (POST) - protégée par auth
 router.post("/logements/:id/like", auth, toggleLike);
 
+// Route pour récupérer tous les équipements disponibles (GET) - publique
+router.get("/equipements", getEquipements);
+
+// Route pour sauvegarder les équipements d'un logement (POST) - protégée par auth
+router.post("/logements/:id/equipements", auth, saveEquipements);
 module.exports = router;
